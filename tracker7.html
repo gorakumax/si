@@ -100,7 +100,8 @@ input[type="range"].vertical::-moz-range-thumb {
 <div class="side-panel">
     <div class="v-slider-container">
         <span class="label">SENS</span>
-        <input type="range" id="sensSlider" class="vertical" min="1" max="25" step="0.5" value="10.0">
+        <!-- minを1、maxを100、初期値を50程度に設定 -->
+		<input type="range" id="sensSlider" class="vertical" min="1" max="100" step="1" value="50">
     </div>
     <div class="v-slider-container">
         <span class="label">THRSH</span>
@@ -162,7 +163,14 @@ input[type="range"].vertical::-moz-range-thumb {
 
     async function init() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // オートゲインやノイズキャンセリングを無効化して生音に近い入力を得る
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+        } 
+    });
         const source = audioCtx.createMediaStreamSource(stream);
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
@@ -175,7 +183,7 @@ input[type="range"].vertical::-moz-range-thumb {
     }
 
     function update() {
-        gainNode.gain.value = parseFloat(sensSld.value);
+        gainNode.gain.value = parseFloat(sensSld.value) * 2;
         analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
