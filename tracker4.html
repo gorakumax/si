@@ -89,7 +89,7 @@
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 512;
         const gainNode = audioContext.createGain();
-        gainNode.gain.value = 6.0; 
+        gainNode.gain.value = 8.0; 
         source.connect(gainNode);
         gainNode.connect(analyser);
         dataArray = new Uint8Array(analyser.frequencyBinCount);
