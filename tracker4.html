@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro Glow Tracker</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #4dfa4d; 
+            font-family: 'Courier New', monospace; 
+            margin: 0; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh;
+        }
+        
+        #radar-viewport {
+            position: relative;
+            flex-grow: 1;
+            width: 100vw;
+            background: #000; /* より暗くして光を強調 */
+            overflow: hidden;
+            /* 画面全体にわずかな走査線ノイズ */
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+        }
+
+        canvas { 
+            display: block;
+            /* 線を滲ませて「太く光っている」感じを出す 
+             4px を 8px くらいにすると、もっとボヤッと光ります */
+            filter: drop-shadow(0 0 6px rgba(77, 250, 77, 0.8));
+        }
+
+        #ui-panel {
+            height: 100px;
+            background: #050505;
+            border-top: 2px solid #1a331a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .params { font-size: 11px; font-weight: bold; color: #4dfa4d; text-shadow: 0 0 8px #0f0; }
+
+        button { 
+            background: #000; color: #4dfa4d; border: 2px solid #4dfa4d; 
+            padding: 10px 20px; font-family: inherit; font-weight: bold;
+            box-shadow: 0 0 15px rgba(77, 250, 77, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div id="radar-viewport">
+    <canvas id="mainCanvas"></canvas>
+</div>
+
+<div id="ui-panel">
+    <div class="params">SENS: MAX<br>GAIN: x6.0</div>
+    <button id="startBtn">INITIALIZE</button>
+    <div class="params" style="text-align: right;">RANGE: WIDE<br>BAT: 85%</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const viewport = document.getElementById('radar-viewport');
+
+    let audioContext, analyser, dataArray;
+    let blips = [];
+    let pulseRadius = 0; // 広がるパルスの半径
+
+    function resize() {
+        canvas.width = viewport.clientWidth;
+        canvas.height = viewport.clientHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    async function init() {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 6.0; 
+        source.connect(gainNode);
+        gainNode.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        startBtn.style.display = 'none';
+        
+ setInterval(() => playBeep(200, 0.03, 0.1), 2000); // 広がるパルスの音ちょうせい
+        draw();
+    }
+
+    function draw() {
+        analyser.getByteFrequencyData(dataArray);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const cx = canvas.width / 2;
+        const cy = canvas.height;
+        const maxRadius = Math.min(canvas.width * 0.85, canvas.height * 0.9);
+
+        // --- 1. 太くて光る半円ライン（チープな質感） ---
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "rgba(0, 255, 0, 0.6)";
+        ctx.strokeStyle = 'rgba(77, 250, 77, 0.4)';
+        ctx.lineWidth = 3; // あえて太く
+
+        for(let r=1; r<=4; r++){
+            ctx.beginPath();
+            ctx.arc(cx, cy, (maxRadius/4)*r, Math.PI, 0);
+            ctx.stroke();
+        }
+
+        // 区切り線
+        ctx.lineWidth = 2;
+        for(let a=1; a<6; a++){
+            let angle = Math.PI + (Math.PI / 6) * a;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle)*maxRadius, cy + Math.sin(angle)*maxRadius);
+            ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+
+        // --- 2. 広がるサーチパルス ---
+        pulseRadius += (maxRadius / 120); // 広がるスピード
+        if (pulseRadius > maxRadius) pulseRadius = 0;
+
+        ctx.strokeStyle = `rgba(77, 255, 77, ${1 - pulseRadius/maxRadius})`;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pulseRadius, Math.PI, 0);
+        ctx.stroke();
+
+        // --- 3. MGS風サラウンド（ギザギザ） ---
+        ctx.beginPath();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        const numBars = dataArray.length;
+        for (let i = 0; i < numBars; i++) {
+            const val = dataArray[i];
+            const angle = Math.PI + (i / numBars) * Math.PI;
+            const rBase = maxRadius;
+            const rExp = rBase + (val / 255) * 50; 
+
+            if(val > 50) {
+                const x1 = cx + Math.cos(angle) * rBase;
+                const y1 = cy + Math.sin(angle) * rBase;
+                const x2 = cx + Math.cos(angle) * rExp;
+                const y2 = cy + Math.sin(angle) * rExp;
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+            }
+            
+            // ドット生成（エイリアン風）
+            if(val > 210 && Math.random() > 0.9) {
+                blips.push({angle: angle, dist: maxRadius * (Math.random()*0.8 + 0.1), life: 1.0});
+            }
+        }
+        ctx.stroke();
+
+        // --- 4. 反応ドット ---
+        blips.forEach((b, index) => {
+            ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
+            ctx.shadowBlur = 15; ctx.shadowColor = "#fff";
+            const bx = cx + Math.cos(b.angle) * b.dist;
+            const by = cy + Math.sin(b.angle) * b.dist;
+            ctx.beginPath();
+            ctx.arc(bx, by, 6, 0, Math.PI*2);
+            ctx.fill();
+            b.life -= 0.01;
+            if(b.life <= 0) blips.splice(index, 1);
+        });
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(draw);
+    }
+
+    function playBeep(f, v, d) {
+        if(!audioContext) return;
+        const o = audioContext.createOscillator();
+        const g = audioContext.createGain();
+        o.frequency.value = f;
+        g.gain.setValueAtTime(v, audioContext.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + d);
+        o.connect(g); g.connect(audioContext.destination);
+        o.start(); o.stop(audioContext.currentTime + d);
+    }
+
+    startBtn.addEventListener('click', init);
+</script>
+</body>
+</html>
