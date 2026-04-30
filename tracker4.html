@@ -95,7 +95,8 @@
         dataArray = new Uint8Array(analyser.frequencyBinCount);
         startBtn.style.display = 'none';
         
- setInterval(() => playBeep(200, 0.03, 0.1), 2000); // 広がるパルスの音ちょうせい
+ 		//setInterval(() => playBeep(200, 0.03, 0.1), 2000); 
+ 		// 広がるパルスの音ちょうせい
         draw();
     }
 
@@ -131,9 +132,14 @@
         ctx.shadowBlur = 0;
 
         // --- 2. 広がるサーチパルス ---
-        pulseRadius += (maxRadius / 120); // 広がるスピード
-        if (pulseRadius > maxRadius) pulseRadius = 0;
-
+        pulseRadius += (maxRadius / 150); // 広がるスピード
+        // if (pulseRadius > maxRadius) pulseRadius = 0;
+		if (pulseRadius > maxRadius) {
+	   	 pulseRadius = 0;
+	   	 playBeep(300, 0.1, 0.4); // 半径がリセットされた（＝新しく出る）瞬間に音を鳴らす
+		}
+		// ※これを使う場合は、元の setInterval(() => playBeep(...), 1500) は削除してください。
+		
         ctx.strokeStyle = `rgba(77, 255, 77, ${1 - pulseRadius/maxRadius})`;
         ctx.lineWidth = 5;
         ctx.beginPath();
