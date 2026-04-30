@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tactical EQ Tracker</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        #radar-container {
+            position: relative; width: 90vw; height: 90vw; max-width: 450px; max-height: 450px;
+            border: 2px solid #030; border-radius: 50%; overflow: hidden; background: #000;
+        }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #info { margin-top: 10px; font-size: 10px; border: 1px solid #060; padding: 5px; width: 80%; background: rgba(0,20,0,0.8); }
+        button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 15px 30px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="radar-container">
+    <canvas id="radarCanvas"></canvas>
+</div>
+
+<div id="info">
+    <div>MODE: FREQUENCY_ANALYSIS</div>
+    <div id="db-val">PEAK: ---</div>
+</div>
+
+<p><button id="startBtn">SYNC SYSTEM</button></p>
+
+<script>
+    const canvas = document.getElementById('radarCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const dbVal = document.getElementById('db-val');
+
+    let audioContext, analyser, dataArray;
+    let particles = [];
+
+    // キャンバスサイズ設定
+    function resize() {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    async function init() {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioContext.createMediaStreamSource(stream);
+        
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 5.0; // 録音感度ブースト
+
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(gainNode);
+        gainNode.connect(analyser);
+        
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        startBtn.style.display = 'none';
+        draw();
+        
+        // ソナー環境音（定期）
+        setInterval(() => playPing(440, 0.03), 2000);
+    }
+
+    function draw() {
+        analyser.getByteFrequencyData(dataArray);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const radius = canvas.width * 0.4;
+
+        // --- 円形イコライザーの描画 ---
+        ctx.strokeStyle = '#0f0';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < dataArray.length; i++) {
+            const barHeight = (dataArray[i] / 255) * 50;
+            const angle = (i / dataArray.length) * Math.PI * 2;
+            
+            const x1 = cx + Math.cos(angle) * (radius - 10);
+            const y1 = cy + Math.sin(angle) * (radius - 10);
+            const x2 = cx + Math.cos(angle) * (radius - 10 - barHeight);
+            const y2 = cy + Math.sin(angle) * (radius - 10 - barHeight);
+            
+            ctx.globalAlpha = dataArray[i] / 255;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            // 強い反応があった周波数に「点」を打つ
+            if (dataArray[i] > 180) {
+                particles.push({x: x2, y: y2, life: 1.0});
+            }
+        }
+
+        // パーティクル（ドット）の描画
+        ctx.globalAlpha = 1.0;
+        particles.forEach((p, index) => {
+            ctx.fillStyle = `rgba(255, 255, 255, ${p.life})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            p.life -= 0.02;
+            if (p.life <= 0) particles.splice(index, 1);
+        });
+
+        // サーチ波紋（簡易版）
+        const time = Date.now() / 1000;
+        ctx.strokeStyle = '#0f0';
+        ctx.globalAlpha = 1 - (time % 2) / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, (time % 2) * radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        requestAnimationFrame(draw);
+    }
+
+    function playPing(f, v) {
+        if(!audioContext) return;
+        const o = audioContext.createOscillator();
+        const g = audioContext.createGain();
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0, audioContext.currentTime);
+        g.gain.linearRampToValueAtTime(v, audioContext.currentTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+        o.connect(g); g.connect(audioContext.destination);
+        o.start(); o.stop(audioContext.currentTime + 0.1);
+    }
+
+    startBtn.addEventListener('click', init);
+</script>
+</body>
+</html>

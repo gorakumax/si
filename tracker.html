@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tactical Fan Tracker</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            user-select: none;
+        }
+
+        #radar-container {
+            position: relative;
+            width: 95vw;
+            height: 95vw;
+            max-width: 450px;
+            max-height: 450px;
+            border: 2px solid #030;
+            border-radius: 50%;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        /* サーチ波紋（3秒周期） */
+        .ping-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border: 1px solid #0f0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            animation: ring-expand 5s linear infinite;
+        }
+
+        @keyframes ring-expand {
+            0% { width: 0; height: 0; opacity: 0.6; }
+            100% { width: 100%; height: 100%; opacity: 0; }
+        }
+
+        /* 十字線 */
+        #radar-container::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #030; transform: translateY(-50%); }
+        #radar-container::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #030; transform: translateX(-50%); }
+
+        /* 反応ドット */
+        .blip {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #0f0;
+            opacity: 0;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        #info-panel {
+            margin-top: 15px;
+            width: 80%;
+            font-size: 10px;
+            border: 1px solid #060;
+            padding: 8px;
+            background: rgba(0, 15, 0, 0.8);
+        }
+
+        button {
+            background: #000; color: #0f0; border: 2px solid #0f0;
+            padding: 15px 40px; font-family: inherit; font-weight: bold;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="radar-container">
+        <div class="ping-ring" style="animation-delay: 0s;"></div>
+        <div class="ping-ring" style="animation-delay: 1.5s;"></div>
+    </div>
+
+    <div id="info-panel">
+        <div>MODE: TACTICAL_EMULATION</div>
+        <div id="activity">ACT: ---</div>
+    </div>
+
+    <p><button id="startBtn">SYSTEM START</button></p>
+
+    <script>
+        const container = document.getElementById('radar-container');
+        const startBtn = document.getElementById('startBtn');
+        const activityDisplay = document.getElementById('activity');
+        
+        let audioContext;
+        let analyser;
+        let dataArray;
+        let lastFrameAverage = 0;
+
+        async function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioContext.createMediaStreamSource(stream);
+
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 4.0; // 感度をさらに高めにブースト
+
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.3;
+
+                source.connect(gainNode);
+                gainNode.connect(analyser);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                startBtn.style.display = 'none';
+                
+                // --- 【新機能】波紋に合わせて定期的に鳴るバックグラウンド音 ---
+                setInterval(() => {
+                    playSimpleBeep(300, 0.1, 0.4); // 低めの音で「トン…」
+                }, 2500); // 波紋の半周期(1.5秒)ごとに鳴らす
+
+                detectSound();
+            } catch (err) {
+                alert("マイクの許可が必要です。");
+            }
+        }
+
+        function detectSound() {
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            let peakFreq = 0;
+            let peakVal = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+                if(dataArray[i] > peakVal) { peakVal = dataArray[i]; peakFreq = i; }
+            }
+            let currentAverage = sum / dataArray.length;
+            let diff = currentAverage - lastFrameAverage;
+
+            // 超高感度
+            if (diff > 1.5) {
+                const angle = (peakFreq / (dataArray.length / 4)) * Math.PI * 2;
+                createBlip(angle, diff);
+                // 反応時の音（少し高めで鋭い）
+                playSimpleBeep(700, 0.05, 0.2); 
+            }
+
+            lastFrameAverage = currentAverage;
+            activityDisplay.innerText = `ACT: ${currentAverage.toFixed(1)} (SENSITIVE_MODE)`;
+            requestAnimationFrame(detectSound);
+        }
+
+        function createBlip(angle, power) {
+            const blip = document.createElement('div');
+            blip.className = 'blip';
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const distance = Math.min(centerX * 0.85, 20 + power * 18);
+            const x = centerX + Math.cos(angle) * distance;
+            const y = centerY + Math.sin(angle) * distance;
+
+            blip.style.left = `${x}px`;
+            blip.style.top = `${y}px`;
+            container.appendChild(blip);
+
+            blip.animate([
+                { opacity: 0, scale: 0.5 },
+                { opacity: 1, scale: 1.2, offset: 0.1 },
+                { opacity: 0, scale: 1.0 }
+            ], { duration: 2000, fill: 'forwards' });
+
+            setTimeout(() => blip.remove(), 2000);
+        }
+
+        // 音を鳴らす共通関数（周波数, 音量, 長さ）
+        function playSimpleBeep(freq, vol, duration) {
+            if (!audioContext) return;
+            const osc = audioContext.createOscillator();
+            const g = audioContext.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+            g.gain.setValueAtTime(0, audioContext.currentTime);
+            g.gain.linearRampToValueAtTime(vol, audioContext.currentTime + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            osc.connect(g);
+            g.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + duration);
+        }
+
+        startBtn.addEventListener('click', () => initAudio());
+    </script>
+</body>
+</html>
+
