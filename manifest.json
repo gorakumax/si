@@ -1,7 +1,7 @@
 {
   "name": "Tactical Command Matrix",
   "short_name": "TCM",
-  "start_url": "index.html",
+  "start_url": "tracker7.html",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#4dfa4d",
