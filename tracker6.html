@@ -2,94 +2,107 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactical Matrix v4.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical Command v5</title>
     <style>
-        :root { --main-color: #4dfa4d; --bg-color: #000; --dim-color: rgba(77, 250, 77, 0.2); }
-        body { background: var(--bg-color); color: var(--main-color); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; font-size: 12px; }
+        :root { --main: #4dfa4d; --dim: rgba(77, 250, 77, 0.2); --bg: #000; }
+        body { background: var(--bg); color: var(--main); font-family: 'Courier New', monospace; margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* ヘッダー・ステータス */
-        #header { padding: 10px; border-bottom: 1px solid var(--dim-color); font-size: 10px; display: flex; justify-content: space-between; }
+        /* メインのレーダー表示（左側） */
+        #main-view { flex: 1; position: relative; border-right: 1px solid var(--dim); display: flex; flex-direction: column; }
+        canvas { flex: 1; width: 100%; height: 100%; }
 
-        /* メインレーダーエリア */
-        #radar-section { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        #radar-canvas { width: 100%; height: 100%; }
+        /* 右側コントロールパネル */
+        #side-panel { width: 300px; padding: 20px; background: rgba(0, 10, 0, 0.9); overflow-y: auto; font-size: 11px; }
+        h2 { font-size: 14px; border-bottom: 2px solid var(--main); padding-bottom: 5px; margin-top: 0; }
+        
+        .control-group { margin-bottom: 20px; border: 1px solid var(--dim); padding: 10px; }
+        label { display: block; margin-bottom: 10px; }
+        input[type="range"] { width: 100%; accent-color: var(--main); cursor: pointer; }
+        
+        .data-box { border: 1px solid var(--main); padding: 10px; background: rgba(0, 40, 0, 0.3); margin-bottom: 10px; }
+        .data-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .val { font-weight: bold; color: #fff; }
 
-        /* 数値パネル */
-        #data-panel { padding: 15px; border: 1px solid var(--main-color); margin: 10px; background: rgba(0, 20, 0, 0.8); }
-        .data-line { display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px solid var(--dim-color); }
-        .val { font-weight: bold; }
-
-        /* ボタン */
-        #startBtn { position: absolute; z-index: 100; padding: 20px 40px; background: #000; color: var(--main-color); border: 2px solid var(--main-color); cursor: pointer; font-family: inherit; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        #startBtn { position: absolute; top: 50%; left: 40%; transform: translate(-50%, -50%); 
+                    padding: 20px 40px; background: #000; color: var(--main); border: 2px solid var(--main); 
+                    cursor: pointer; font-weight: bold; z-index: 100; font-family: inherit; }
     </style>
 </head>
 <body>
 
-<div id="header">
-    <div>SYSTEM_HEARTBEAT: <span id="uptime">00:00</span></div>
-    <div>BATTERY: <span id="batt">74%</span></div>
+<div id="main-view">
+    <canvas id="radarCanvas"></canvas>
+    <button id="startBtn">SYSTEM INITIALIZE</button>
 </div>
 
-<div id="radar-section">
-    <canvas id="radar-canvas"></canvas>
-    <button id="startBtn">INITIALIZE SYSTEM</button>
-</div>
+<div id="side-panel">
+    <h2>CONTROL_MATRIX</h2>
+    
+    <div class="control-group">
+        <label>GAIN_BOOST (感度増幅)</label>
+        <input type="range" id="gainSlider" min="1" max="20" value="5" step="0.5">
+        <div class="data-line"><span>LEVEL:</span><span id="gainVal">x5.0</span></div>
+    </div>
 
-<div id="data-panel">
-    <div style="font-size: 10px; margin-bottom: 8px; opacity: 0.7;">SENSOR_MATRIX_v4.1</div>
-    <div class="data-line"><span>PEAK_VOLUME:</span><span id="db-val" class="val">--.- dB</span></div>
-    <div class="data-line"><span>FREQUENCY:</span><span id="freq-val" class="val">--- Hz</span></div>
-    <div class="data-line"><span>COMPASS:</span><span id="compass-val" class="val">---°</span></div>
-    <div class="data-line"><span>MOTION_DETECT:</span><span id="motion-val" class="val">[WAITING]</span></div>
-    <div class="data-line"><span>SYSTEM_TEMP:</span><span class="val">+34.2°C</span></div>
+    <div class="control-group">
+        <label>THRESHOLD (探知閾値)</label>
+        <input type="range" id="threshSlider" min="0.1" max="10" value="1.8" step="0.1">
+        <div class="data-line"><span>LIMIT:</span><span id="threshVal">1.8</span></div>
+    </div>
+
+    <h2>REALTIME_TELEMETRY</h2>
+    <div class="data-box">
+        <div class="data-line"><span>SIGNAL_PEAK:</span><span id="db-val" class="val">--.- dB</span></div>
+        <div class="data-line"><span>PRIMARY_FRQ:</span><span id="freq-val" class="val">--- Hz</span></div>
+        <div class="data-line"><span>ENVIRONMENT:</span><span id="env-val" class="val">STABLE</span></div>
+    </div>
+
+    <div id="log" style="font-size: 9px; opacity: 0.6; height: 100px; overflow: hidden;">
+        > BOOTING...<br>
+        > SENSOR_READY...<br>
+        > WAITING_FOR_INPUT...
+    </div>
 </div>
 
 <script>
-    const canvas = document.getElementById('radar-canvas');
+    const canvas = document.getElementById('radarCanvas');
     const ctx = canvas.getContext('2d');
     const startBtn = document.getElementById('startBtn');
     
-    // UI要素
+    // スライダー・表示要素
+    const gainSld = document.getElementById('gainSlider');
+    const threshSld = document.getElementById('threshSlider');
+    const gainValDisp = document.getElementById('gainVal');
+    const threshValDisp = document.getElementById('threshVal');
     const dbDisp = document.getElementById('db-val');
     const freqDisp = document.getElementById('freq-val');
-    const compassDisp = document.getElementById('compass-val');
-    const motionDisp = document.getElementById('motion-val');
 
-    let audioCtx, analyser, dataArray;
-    let compass = 0;
+    let audioCtx, analyser, dataArray, gainNode;
+    let lastAvg = 0;
 
     function resize() {
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
     }
     window.addEventListener('resize', resize);
     resize();
-
-    // コンパス取得
-    window.addEventListener('deviceorientationabsolute', (e) => {
-        if (e.alpha !== null) compass = Math.floor(e.alpha);
-    }, true);
 
     async function init() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioCtx.createMediaStreamSource(stream);
         
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 5.0; // 感度ブースト
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = parseFloat(gainSld.value);
 
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
+        analyser.fftSize = 1024;
         source.connect(gainNode);
         gainNode.connect(analyser);
         dataArray = new Uint8Array(analyser.frequencyBinCount);
         
         startBtn.style.display = 'none';
-        
-        // 定期的なピコン音
-        setInterval(() => playPing(440, 0.02), 3000);
-        
         update();
     }
 
@@ -99,80 +112,78 @@
         
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
-        const baseRadius = Math.min(cx, cy) * 0.7;
+        // PCでもスマホでも綺麗に見えるサイズ（短辺基準）
+        const baseRadius = Math.min(cx, cy) * 0.8;
 
-        // 1. 背景のグリッド円
-        ctx.strokeStyle = 'rgba(77, 250, 77, 0.1)';
-        for(let i=1; i<=3; i++) {
+        // 1. 半円・円形グリッド（計器風）
+        ctx.strokeStyle = 'rgba(77, 250, 77, 0.15)';
+        ctx.lineWidth = 1;
+        for(let i=1; i<=4; i++) {
             ctx.beginPath();
-            ctx.arc(cx, cy, baseRadius * (i/3), 0, Math.PI * 2);
+            ctx.arc(cx, cy, baseRadius * (i/4), 0, Math.PI * 2);
             ctx.stroke();
         }
-        // 十字線
+        // 十字レティクル
         ctx.beginPath();
-        ctx.moveTo(cx, cy - baseRadius); ctx.lineTo(cx, cy + baseRadius);
         ctx.moveTo(cx - baseRadius, cy); ctx.lineTo(cx + baseRadius, cy);
+        ctx.moveTo(cx, cy - baseRadius); ctx.lineTo(cx, cy + baseRadius);
         ctx.stroke();
 
-        // 2. MGS V風サラウンド波形
+        // 2. 指向性風サラウンド波形 (MGS風)
         let sum = 0;
-        let peakFreq = 0;
-        let maxVal = 0;
+        let peakIdx = 0;
+        let maxV = 0;
 
         ctx.beginPath();
+        ctx.lineWidth = 2;
         for (let i = 0; i < dataArray.length; i++) {
             const v = dataArray[i];
             sum += v;
-            if(v > maxVal) { maxVal = v; peakFreq = i; }
+            if(v > maxV) { maxV = v; peakIdx = i; }
 
             const angle = (i / dataArray.length) * Math.PI * 2 - Math.PI/2;
-            const boost = (v / 255) * 60;
+            const boost = (v / 255) * (baseRadius * 0.4); 
             
-            const x = cx + Math.cos(angle) * (baseRadius + boost);
-            const y = cy + Math.sin(angle) * (baseRadius + boost);
+            // 外側へ広がるライン
+            const x1 = cx + Math.cos(angle) * baseRadius;
+            const y1 = cy + Math.sin(angle) * baseRadius;
+            const x2 = cx + Math.cos(angle) * (baseRadius + boost);
+            const y2 = cy + Math.sin(angle) * (baseRadius + boost);
             
             ctx.strokeStyle = `rgba(77, 250, 77, ${v/255})`;
-            ctx.moveTo(cx + Math.cos(angle)*baseRadius, cy + Math.sin(angle)*baseRadius);
-            ctx.lineTo(x, y);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
         }
         ctx.stroke();
 
-        // 3. 数値情報の更新
+        // 3. 数値計算 & スライダー同期
+        gainNode.gain.value = parseFloat(gainSld.value);
+        gainValDisp.innerText = `x${gainNode.gain.value.toFixed(1)}`;
+        threshValDisp.innerText = threshSld.value;
+
         const avg = sum / dataArray.length;
-        const db = (avg * 0.7).toFixed(1);
-        dbDisp.innerText = `${db} dB`;
-        freqDisp.innerText = `${Math.floor(peakFreq * (audioCtx.sampleRate/analyser.fftSize))} Hz`;
-        compassDisp.innerText = `${compass}°`;
-        motionDisp.innerText = avg > 20 ? "[DETECTED]" : "[STABLE]";
+        const diff = avg - lastAvg;
+        dbDisp.innerText = `${(avg * 0.5).toFixed(1)} dB`;
+        freqDisp.innerText = `${Math.floor(peakIdx * (audioCtx.sampleRate/analyser.fftSize))} Hz`;
+        
+        // 探知演出
+        if (diff > parseFloat(threshSld.value)) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+            ctx.fill();
+            document.getElementById('env-val').innerText = "DETECTED";
+            document.getElementById('env-val').style.color = "#fff";
+        } else {
+            document.getElementById('env-val').innerText = "STABLE";
+            document.getElementById('env-val').style.color = var(--main);
+        }
 
-        // 波紋演出
-        const time = Date.now() / 3000;
-        ctx.strokeStyle = `rgba(77, 250, 77, ${1 - (time % 1)})`;
-        ctx.beginPath();
-        ctx.arc(cx, cy, (time % 1) * baseRadius, 0, Math.PI * 2);
-        ctx.stroke();
-
+        lastAvg = avg;
         requestAnimationFrame(update);
     }
 
-    function playPing(f, v) {
-        if(!audioCtx) return;
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.frequency.value = f;
-        g.gain.setValueAtTime(v, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(); o.stop(audioCtx.currentTime + 0.1);
-    }
-
     startBtn.addEventListener('click', () => init());
-
-    // ダミーのアップタイム更新
-    setInterval(() => {
-        const now = new Date();
-        document.getElementById('uptime').innerText = `${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-    }, 1000);
 </script>
 </body>
 </html>
