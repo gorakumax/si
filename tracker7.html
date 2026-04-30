@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- PWA用の設定 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Command Matrix">
+<link rel="apple-touch-icon" href="icon.png"> <!-- アイコンがあれば -->
     <title>Tactical Command Matrix</title>
     <style>
         :root { --main: #4dfa4d; --bg: #000; --dim: rgba(77, 250, 77, 0.2); }
@@ -101,7 +106,7 @@ input[type="range"].vertical::-moz-range-thumb {
     <div class="v-slider-container">
         <span class="label">SENS</span>
         <!-- minを1、maxを100、初期値を50程度に設定 -->
-		<input type="range" id="sensSlider" class="vertical" min="1" max="100" step="1" value="50">
+		<input type="range" id="sensSlider" class="vertical" min="1" max="100" step="1" value="15">
     </div>
     <div class="v-slider-container">
         <span class="label">THRSH</span>
@@ -154,10 +159,14 @@ input[type="range"].vertical::-moz-range-thumb {
     let pulseRadius = 0;
     let lastAvg = 0;
 
-    function resize() {
-        canvas.width = radarArea.clientWidth;
-        canvas.height = radarArea.clientHeight;
-    }
+function resize() {
+    // アドレスバーを含まない「実際に表示可能な高さ」を取得
+    const visualHeight = window.innerHeight;
+    document.body.style.height = visualHeight + 'px';
+    
+    canvas.width = radarArea.clientWidth;
+    canvas.height = radarArea.clientHeight;
+}
     window.addEventListener('resize', resize);
     resize();
 
@@ -183,7 +192,7 @@ input[type="range"].vertical::-moz-range-thumb {
     }
 
     function update() {
-        gainNode.gain.value = parseFloat(sensSld.value) * 2;
+        gainNode.gain.value = parseFloat(sensSld.value) * 1.2;
         analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
