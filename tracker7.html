@@ -8,21 +8,15 @@
         :root { --main: #4dfa4d; --bg: #000; --dim: rgba(77, 250, 77, 0.2); }
         body { background: var(--bg); color: var(--main); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; display: flex; height: 100vh; width: 100vw; }
 
-        /* 左右パネル（固定幅） */
+        /* 左右パネル（source: 2準拠[cite: 2]） */
         .side-panel {
-            width: 70px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            align-items: center;
-            background: #050505;
-            border-right: 1px solid var(--dim);
-            padding: 10px 0;
-            z-index: 100;
+            width: 70px; display: flex; flex-direction: column; justify-content: space-around;
+            align-items: center; background: #050505; border-right: 1px solid var(--dim);
+            padding: 10px 0; z-index: 100;
         }
         .side-panel.right { border-right: none; border-left: 1px solid var(--dim); }
 
-        /* スライダー設定 */
+        /* スライダー設定[cite: 2] */
         .v-slider-container { display: flex; flex-direction: column; align-items: center; height: 35%; }
         input[type="range"].vertical {
             writing-mode: bt-lr; -webkit-appearance: slider-vertical;
@@ -30,30 +24,16 @@
         }
         .label { font-size: 9px; margin-bottom: 5px; font-weight: bold; }
 
-        /* 中央メインビューポート（可変幅） */
-        #viewport {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            background: #000;
-        }
-
-        /* レーダー描画エリア */
+        /* 中央メインビューポート[cite: 2] */
+        #viewport { flex: 1; display: flex; flex-direction: column; position: relative; background: #000; }
         #radar-area { flex: 1; position: relative; overflow: hidden; }
-        canvas { display: block; filter: drop-shadow(0 0 5px var(--main)); }
+        canvas { display: block; }
 
-        /* 下部ステータスパネル（手書きイメージの再現） */
+        /* 下部ステータスパネル（source: 2準拠[cite: 2]） */
         #status-panel {
-            height: 140px;
-            margin: 5px;
-            padding: 10px;
-            border: 1px solid var(--main);
-            background: rgba(0, 20, 0, 0.9);
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            height: 140px; margin: 5px; padding: 10px;
+            border: 1px solid var(--main); background: rgba(0, 20, 0, 0.9);
+            box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;
         }
         .matrix-title { font-size: 10px; opacity: 0.7; margin-bottom: 5px; border-bottom: 1px solid var(--dim); }
         .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
@@ -65,6 +45,54 @@
             background: #000; color: var(--main); border: 2px solid var(--main); 
             padding: 15px 30px; font-family: inherit; font-weight: bold; z-index: 200; cursor: pointer;
         }
+        /* --- スライダーのツマミを横長四角に変更 --- */
+
+/* 垂直スライダーのコンテナ */
+.v-slider-container { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    height: 35%;
+    position: relative;
+}
+
+/* スライダー本体の強制リセット */
+input[type="range"].vertical {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 150px; /* 回転後の「高さ」になります */
+    height: 8px;  /* レールの太さ */
+    background: #1a331a;
+    outline: none;
+    /* 縦にするために 270度回転させる */
+    transform: rotate(270deg);
+    margin: 70px 0; /* 回転してはみ出す分の余白調整 */
+}
+
+/* ツマミを「横長四角」にする（Chrome, Safari用） */
+input[type="range"].vertical::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    /* 縦向きの状態で「横長」に見えるよう、widthとheightを指定 */
+    width: 10px;  /* レール方向の厚み */
+    height: 30px; /* レールをまたぐ横幅 */
+    background: var(--main);
+    border: 1px solid #fff;
+    border-radius: 0; /* 角を四角にする */
+    box-shadow: 0 0 10px var(--main);
+    cursor: pointer;
+}
+
+/* Firefox用 */
+input[type="range"].vertical::-moz-range-thumb {
+    width: 10px;
+    height: 30px;
+    background: var(--main);
+    border: 1px solid #fff;
+    border-radius: 0;
+    box-shadow: 0 0 10px var(--main);
+    cursor: pointer;
+}
     </style>
 </head>
 <body>
@@ -82,10 +110,7 @@
 
 <div id="viewport">
     <button id="startBtn">SYSTEM_BOOT</button>
-    
-    <div id="radar-area">
-        <canvas id="mainCanvas"></canvas>
-    </div>
+    <div id="radar-area"><canvas id="mainCanvas"></canvas></div>
 
     <div id="status-panel">
         <div class="matrix-title">SENSOR_MATRIX_DECRYPTOR_v5.2</div>
@@ -139,15 +164,12 @@
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioCtx.createMediaStreamSource(stream);
-        
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
         gainNode = audioCtx.createGain();
-        
         source.connect(gainNode);
         gainNode.connect(analyser);
         dataArray = new Uint8Array(analyser.frequencyBinCount);
-        
         startBtn.style.display = 'none';
         update();
     }
@@ -158,52 +180,55 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         const cx = canvas.width / 2;
-        const cy = canvas.height * 0.95; // 少し底から浮かせる
+        const cy = canvas.height * 0.95; 
         const maxRadius = Math.min(canvas.width * 0.45, canvas.height * 0.85);
 
-        // 1. 半円グリッド
-        ctx.strokeStyle = 'rgba(77, 250, 77, 0.2)';
-        ctx.lineWidth = 1;
+        // --- ダーツボード・グリッド（太くぼやけたアナログ表現） ---
+        ctx.save();
+        ctx.strokeStyle = 'rgba(77, 250, 77, 0.25)';
+        ctx.lineWidth = 4;             // 線を太く
+        ctx.shadowBlur = 15;           // ぼやけ（発光）
+        ctx.shadowColor = 'rgba(77, 250, 77, 0.6)';
+
+        // 同心円[cite: 2]
         for(let r=1; r<=4; r++){
             ctx.beginPath();
             ctx.arc(cx, cy, (maxRadius/4)*r, Math.PI, 0);
             ctx.stroke();
         }
+        // 放射線
+        for(let i=0; i<=6; i++){
+            const angle = Math.PI + (Math.PI / 6) * i;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle)*maxRadius, cy + Math.sin(angle)*maxRadius);
+            ctx.stroke();
+        }
+        ctx.restore(); // 他の描画にボケが影響しないように戻す
 
-        // 2. スキャンパルス
-        pulseRadius += (maxRadius / 160);
+        // 2. パルス[cite: 2]
+        pulseRadius += (maxRadius / 220);
         if (pulseRadius > maxRadius) {
             pulseRadius = 0;
             playBeep(200, parseFloat(pulseVolSld.value), 0.3);
         }
         ctx.strokeStyle = `rgba(77, 255, 77, ${1 - pulseRadius/maxRadius})`;
         ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(cx, cy, pulseRadius, Math.PI, 0);
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, pulseRadius, Math.PI, 0); ctx.stroke();
 
-        // 3. 波形解析と数値データ取得
-        let sum = 0;
-        let peakIdx = 0;
-        let maxV = 0;
+        // 3. 波形解析[cite: 2]
+        let sum = 0; let peakIdx = 0; let maxV = 0;
         const thresh = parseFloat(threshSld.value);
-
-        ctx.beginPath();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        
+        ctx.beginPath(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
         for (let i = 0; i < dataArray.length; i++) {
             const v = dataArray[i];
-            sum += v;
-            if(v > maxV) { maxV = v; peakIdx = i; }
-            
+            sum += v; if(v > maxV) { maxV = v; peakIdx = i; }
             const angle = Math.PI + (i / dataArray.length) * Math.PI;
             if(v > 50) {
                 const rExp = maxRadius + (v / 255) * 40;
                 ctx.moveTo(cx + Math.cos(angle) * maxRadius, cy + Math.sin(angle) * maxRadius);
                 ctx.lineTo(cx + Math.cos(angle) * rExp, cy + Math.sin(angle) * rExp);
             }
-
             if(v > thresh && Math.random() > 0.96) {
                 blips.push({angle: angle, dist: maxRadius * (Math.random()*0.8 + 0.1), life: 1.0});
                 playBeep(800, parseFloat(beepVolSld.value), 0.05);
@@ -211,7 +236,7 @@
         }
         ctx.stroke();
 
-        // 4. 数値表示更新
+        // 4. 数値表示更新[cite: 2]
         const avg = sum / dataArray.length;
         const diff = avg - lastAvg;
         document.getElementById('db-val').innerText = `${(avg * 0.8).toFixed(1)} dB`;
@@ -226,7 +251,7 @@
             document.getElementById('env-val').style.color = "var(--main)";
         }
 
-        // 5. 反応ドット
+        // 5. 反応ドット[cite: 2]
         blips.forEach((b, i) => {
             ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
             ctx.beginPath();
