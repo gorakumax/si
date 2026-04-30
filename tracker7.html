@@ -107,7 +107,7 @@ input[type="range"].vertical::-moz-range-thumb {
     <div class="v-slider-container">
         <span class="label">SENS</span>
         <!-- minを1、maxを100、初期値を50程度に設定 -->
-		<input type="range" id="sensSlider" class="vertical" min="1" max="50" step="0.5" value="10">
+		<input type="range" id="sensSlider" class="vertical" min="1" max="25" step="0.5" value="10.0">
     </div>
     <div class="v-slider-container">
         <span class="label">THRSH</span>
@@ -176,9 +176,9 @@ function resize() {
         // オートゲインやノイズキャンセリングを無効化して生音に近い入力を得る
     const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-            echoCancellation: false,
+            echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: false
+            autoGainControl: true
         } 
     });
         const source = audioCtx.createMediaStreamSource(stream);
@@ -193,7 +193,7 @@ function resize() {
     }
 
     function update() {
-        gainNode.gain.value = parseFloat(sensSld.value);
+        gainNode.gain.value = parseFloat(sensSld.value) * 1.5;
         analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
